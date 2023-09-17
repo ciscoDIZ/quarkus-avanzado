@@ -24,21 +24,19 @@ public class ProductSalesGenerator {
    private static final Logger LOGGER = Logger.getLogger(CustomerResource.class);
 
    @Location("sales/sales-mail-report")
-   Template salesReport;
+   MailTemplate salesReport;
+
 
    @Scheduled(cron="{kineteco.sales}")
    public void generate() {
       List<ProductSale> productSales = ProductSale.listAll();
       // Generate Report
-      salesReport
-            .data("sales", productSales)
-            .data("date", LocalDateTime.now().toString())
-            .renderAsync()
-            .thenAccept(r -> LOGGER.info(r))
-            .exceptionally(e -> {
-               LOGGER.error(e);
-               return null;
-            });
+      Uni<Void> send = salesReport
+              .to("sales@kinetco.com")
+              .subject("Daily Report")
+              .data("sales", productSales)
+              .data("date", LocalDateTime.now()).send();
+      send.await().atMost(Duration.ofMinutes(1));
    }
 
 }

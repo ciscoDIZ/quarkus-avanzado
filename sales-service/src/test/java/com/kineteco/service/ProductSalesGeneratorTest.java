@@ -14,11 +14,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 @QuarkusTest
 public class ProductSalesGeneratorTest {
 
+   private static final String TO = "sales@kinetco.com";
    @Inject
    ProductSalesGenerator productSalesGenerator;
+
+   @Inject
+   MockMailbox mailbox;
+
+   @BeforeEach
+   public void init() {
+      mailbox.clear();
+   }
 
    @Test
    public void testReportingMail() throws Exception {
       productSalesGenerator.generate();
+      List<Mail> sent = mailbox.getMessagesSentTo(TO);
+      assertThat(sent).hasSize(1);
+      Mail actual = sent.get(0);
+      assertThat(actual.getSubject()).isEqualTo("Daily Report");
+      assertThat(actual.getHtml()).contains("Sales Reporting");
+      assertThat(mailbox.getTotalMessagesSent()).isEqualTo(1);
    }
 }
