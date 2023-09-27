@@ -24,19 +24,19 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class StatsService {
-   private static final Logger LOGGER = Logger.getLogger(StatsService.class);
+    private static final Logger LOGGER = Logger.getLogger(StatsService.class);
 
-   @Incoming("orders")
-   @Outgoing("orders-stats")
-   public Multi<OrderStat> computeTopProducts(Multi<ManufactureOrder> orders) {
-      return orders.onItem()
-            .transform(order -> {
-               OrderStat stat = new OrderStat();
-               stat.sku = order.sku;
-               stat.count = 1;
-               return stat;
+    @Incoming("orders")
+    @Outgoing("orders-stats")
+    public Multi<OrderStat> computeTopProducts(Multi<ManufactureOrder> orders) {
+        return orders.group().by(order -> order.sku)
+                .onItem().transformToMultiAndMerge(g -> g.onItem().scan(OrderStat::new, this::incrementOrderCount))
+                .invoke(() -> LOGGER.info("Order received. Computed the top product stats"));
+    }
 
-   })
-            .invoke(() -> LOGGER.info("Order received. Computed the top product stats"));
-   }
+    private OrderStat incrementOrderCount(OrderStat orderStat, ManufactureOrder manufactureOrder) {
+        orderStat.sku = manufactureOrder.sku;
+        orderStat.count = orderStat.count + 1;
+        return orderStat;
+    }
 }
