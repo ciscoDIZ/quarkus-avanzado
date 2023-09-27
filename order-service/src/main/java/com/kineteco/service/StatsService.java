@@ -26,12 +26,37 @@ import java.util.stream.Collectors;
 public class StatsService {
     private static final Logger LOGGER = Logger.getLogger(StatsService.class);
 
+    private final Map<String, OrderStat> stats = new HashMap<>();
+
+    @Inject
+    ObjectMapper mapper;
+
     @Incoming("orders")
     @Outgoing("orders-stats")
-    public Multi<OrderStat> computeTopProducts(Multi<ManufactureOrder> orders) {
+    public Multi<Collection<String>> computeTopProducts(Multi<ManufactureOrder> orders) {
         return orders.group().by(order -> order.sku)
                 .onItem().transformToMultiAndMerge(g -> g.onItem().scan(OrderStat::new, this::incrementOrderCount))
+                .onItem().transform(this::onNewStat)
                 .invoke(() -> LOGGER.info("Order received. Computed the top product stats"));
+    }
+
+    private Collection<String> onNewStat(OrderStat stat) {
+        if (stat.sku != null) {
+            stats.put(stat.sku, stat);
+        }
+
+        return stats.values().stream()
+                .sorted(Comparator.comparingInt(s-> -1 * s.count))
+                .map(this::transformJson)
+                .collect(Collectors.toUnmodifiableList());
+    }
+
+    private String transformJson(OrderStat stat) {
+        try {
+            return mapper.writeValueAsString(stat);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private OrderStat incrementOrderCount(OrderStat orderStat, ManufactureOrder manufactureOrder) {
